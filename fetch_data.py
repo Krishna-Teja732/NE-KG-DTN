@@ -19,7 +19,7 @@ class Hashcompute:
         }
         self.matchs_hash_dict : Dict[str, Dict[str, str]] = dict()
         self.actions_hash_dict : Dict[str, List[str]] = dict()
-        self.flow_hash_dict : Dict[str, Dict[str, str]] = dict()
+        self.switch_hash_dict : Dict[str,Dict[str, str]] = dict()
         self.database: List[Dict] = (dict(), dict(), dict())
 
 
@@ -51,9 +51,9 @@ class Hashcompute:
 
         Returns:
             Tuple[Dict[str, Dict[str, str]], Dict[str, Dict[str, str]], Dict[str, List[str]]]: A tuple containing three dictionaries:
-                - flow_hash_dict: A dictionary containing the flow hashes.
-                - matchs_hash_dict: A dictionary containing the match hashes.
-                - actions_hash_dict: A dictionary containing the action hashes.
+                - switch_hash_dict: A dictionary of flow hashes for each switch.
+                - matchs_hash_dict: A dictionary of match hashes.
+                - actions_hash_dict: A dictionary of action hashes.
         """
 
         flow_url: str = f"{self.base_url.lstrip('/')}/{uri.lstrip('/')}"
@@ -63,8 +63,10 @@ class Hashcompute:
             switch_flow_url: str = f"{flow_url}{dpid}"
             flow_response: Dict = request("GET", switch_flow_url).json()
             flow_entries : List[Dict] = flow_response[str(dpid)]
+            flow_hash_dict: Dict[str, Dict[str, str]] = dict()
             
             for flow_entry in flow_entries:
+
                 match_labels: Dict[str, Union[str, int]] = dict(sorted(flow_entry['match'].items()))
                 action_labels: List[str] = flow_entry['actions']
 
@@ -80,52 +82,47 @@ class Hashcompute:
                 
                 self.matchs_hash_dict[match_hash] = match_labels
                 self.actions_hash_dict[action_hash] = action_labels
-                self.flow_hash_dict[flow_hash] = {
+                flow_hash_dict[flow_hash] = {
                     "match": match_hash,
                     "actions": action_hash
                 }
+            
+            self.switch_hash_dict[str(dpid)] = flow_hash_dict
 
-        return (self.flow_hash_dict, self.matchs_hash_dict, self.actions_hash_dict)
+        return (self.switch_hash_dict , self.matchs_hash_dict, self.actions_hash_dict)
 
 
-    def compare(self) -> Tuple[List[str], List[str], List[str]]:
+    def compare(self) -> Dict[str, Dict[str, str]]:
         """
-        Compares the old and new hashes of flow entries.
-        This function checks for any changes in the flow entries and prints the differences.
+        Compares the current flow rules with the previous ones and returns the differences.
+        This function computes the hashes of the current flow rules and compares them with the previously stored hashes.
+        If there are any differences, it updates the database with the new hashes.
+        It returns a dictionary containing the flow entries that need to be removed.
 
         Returns:
-            Tuple[List[str], List[str], List[str]]: A tuple containing three lists:
-                - flow_remove: A list of flow hashes that have been removed.
-                - match_remove: A list of match hashes that have been removed.
-                - action_remove: A list of action hashes that have been removed.
+            Dict[str, Dict[str, str]]: A dictionary containing the flow entries that need to be removed.
         """
 
         new_hashes = self.get_flow_match_action()
 
-        flow_hashes, match_hashes, action_hashes = new_hashes
-        old_flow_hashes, old_match_hashes, old_action_hashes = self.database
+        switch_hashes, _, _ = new_hashes
+        old_switch_hashes, _, _ = self.database
+        flow_entry_remove: Dict[str, Dict[str, str]] = dict()
 
-        for key in flow_hashes.keys():
-            if old_flow_hashes.get(key):
-                old_flow_hashes.pop(key)
+        for dpid in switch_hashes.keys():
 
-        flow_remove: List[str] = list(old_flow_hashes.keys())
+            if old_switch_hashes.get(dpid):
+                for flow_hash in switch_hashes[dpid].keys():
+                    if old_switch_hashes[dpid].get(flow_hash):
+                        old_switch_hashes[dpid].pop(flow_hash)
+
+            flow_entry_remove.update(old_switch_hashes)
         
-        for key in match_hashes.keys():
-            if old_match_hashes.get(key):
-                old_match_hashes.pop(key)
-
-        match_remove: List[str] = list(old_match_hashes.keys())
-        
-        for key in action_hashes.keys():
-            if old_action_hashes.get(key):
-                old_action_hashes.pop(key)
-            
-        action_remove: List[str] = list(old_action_hashes.keys())
-
         self.database = deepcopy(new_hashes)
 
-        return (flow_remove, match_remove, action_remove)
+        print("\n\nFlow Entry Remove: ", flow_entry_remove)
+
+        return flow_entry_remove
 
 
 if __name__ == "__main__":
