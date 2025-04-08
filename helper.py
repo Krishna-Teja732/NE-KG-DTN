@@ -7,5 +7,7 @@ if __name__ == "__main__":
     while True:
         ch = ord(input("Press space to continue: "))
         if ch == 32:
-            HC.compare()
+            flow_remove = HC.compare()
+            print("Flow entry remove: ")
+            print(flow_remove)
         

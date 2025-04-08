@@ -37,7 +37,7 @@ class Hashcompute:
 
         switch_url : str = f"{self.base_url.lstrip('/')}/{uri.lstrip('/')}"
         switches_response : list[Dict] = request("GET", switch_url).json()
-        dpids:list[int] = [int(switch['dpid']) for switch in switches_response]
+        dpids:list[int] = [int(switch['dpid'], base=16) for switch in switches_response]
 
         return dpids
 
@@ -119,8 +119,6 @@ class Hashcompute:
             flow_entry_remove.update(old_switch_hashes)
         
         self.database = deepcopy(new_hashes)
-
-        print("\n\nFlow Entry Remove: ", flow_entry_remove)
 
         return flow_entry_remove
 
