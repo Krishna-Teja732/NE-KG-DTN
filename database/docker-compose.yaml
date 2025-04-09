@@ -1,0 +1,11 @@
+services:
+  graph-db:
+    image: neo4j:5.26.5-community-bullseye
+    volumes:
+        - ./neo4j/data:/data
+    environment:
+        - NEO4J_AUTH=neo4j/defaultGraphDB
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    restart: always
